@@ -424,8 +424,8 @@ public class KafkaMessageListenerContainer<K, V> extends AbstractMessageListener
 			 * called until we poll() the consumer.
 			 */
 			if (this.recentOffset > 0) {
-				this.consumer.seekToEnd(
-						this.definedPartitions.toArray(new TopicPartition[this.definedPartitions.size()]));
+				this.consumer.seekToEnd(Arrays.asList(
+						this.definedPartitions.toArray(new TopicPartition[this.definedPartitions.size()])));
 				for (TopicPartition topicPartition : this.definedPartitions) {
 					long newOffset = this.consumer.position(topicPartition) - this.recentOffset;
 					this.consumer.seek(topicPartition, newOffset);

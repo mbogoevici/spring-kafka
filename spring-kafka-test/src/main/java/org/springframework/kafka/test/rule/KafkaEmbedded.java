@@ -28,15 +28,25 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 import javax.net.ServerSocketFactory;
 
+import com.gs.collections.api.block.function.Function;
+import com.gs.collections.impl.list.mutable.FastList;
+import com.gs.collections.impl.utility.ListIterate;
+import kafka.admin.AdminUtils;
+import kafka.server.KafkaConfig;
+import kafka.server.KafkaServer;
+import kafka.server.NotRunning;
+import kafka.utils.SystemTime$;
+import kafka.utils.TestUtils;
+import kafka.utils.ZKStringSerializer$;
+import kafka.utils.ZkUtils;
+import kafka.zk.EmbeddedZookeeper;
 import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.SecurityProtocol;
 import org.junit.rules.ExternalResource;
 
@@ -46,28 +56,6 @@ import org.springframework.retry.RetryContext;
 import org.springframework.retry.backoff.ExponentialBackOffPolicy;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
-
-import com.gs.collections.api.block.function.Function;
-import com.gs.collections.impl.list.mutable.FastList;
-import com.gs.collections.impl.utility.ListIterate;
-
-import kafka.admin.AdminUtils;
-import kafka.admin.AdminUtils$;
-import kafka.api.PartitionMetadata;
-import kafka.api.TopicMetadata;
-import kafka.cluster.BrokerEndPoint;
-import kafka.server.KafkaConfig;
-import kafka.server.KafkaServer;
-import kafka.server.NotRunning;
-import kafka.utils.CoreUtils;
-import kafka.utils.SystemTime$;
-import kafka.utils.TestUtils;
-import kafka.utils.ZKStringSerializer$;
-import kafka.utils.ZkUtils;
-import kafka.zk.EmbeddedZookeeper;
-import scala.collection.JavaConversions;
-import scala.collection.Map;
-import scala.collection.Set;
 
 /**
  * The {@link KafkaRule} implementation for the embedded Kafka Broker and Zookeeper.
@@ -148,18 +136,18 @@ public class KafkaEmbedded extends ExternalResource implements KafkaRule {
 			Properties brokerConfigProperties = TestUtils.createBrokerConfig(i, this.zkConnect, this.controlledShutdown,
 					true, randomPort,
 					scala.Option.<SecurityProtocol>apply(null),
-					scala.Option.<File>apply(null),
-					true, false, 0, false, 0, false, 0);
+					scala.Option.<File>apply(null), scala.Option.<Properties>apply(null),
+					true, false, 0, false, 0, false, 0, scala.Option.<String>apply(null));
 			brokerConfigProperties.setProperty("replica.socket.timeout.ms", "1000");
 			brokerConfigProperties.setProperty("controller.socket.timeout.ms", "1000");
 			brokerConfigProperties.setProperty("offsets.topic.replication.factor", "1");
-			KafkaServer server = TestUtils.createServer(new KafkaConfig(brokerConfigProperties), SystemTime$.MODULE$);
+			KafkaServer server = TestUtils.createServer(new KafkaConfig(brokerConfigProperties, false), SystemTime$.MODULE$);
 			this.kafkaServers.add(server);
 		}
 		ZkUtils zkUtils = new ZkUtils(getZkClient(), null, false);
 		Properties props = new Properties();
 		for (String topic : this.topics) {
-			AdminUtils.createTopic(zkUtils, topic, this.partitionsPerTopic, this.count, props);
+			AdminUtils.createTopic(zkUtils, topic, this.partitionsPerTopic, this.count, props, null);
 		}
 	}
 
@@ -176,7 +164,7 @@ public class KafkaEmbedded extends ExternalResource implements KafkaRule {
 				// do nothing
 			}
 			try {
-				CoreUtils.rm(kafkaServer.config().logDirs());
+				//CoreUtils.rm(kafkaServer.config().logDirs());
 			}
 			catch (Exception e) {
 				// do nothing
@@ -256,46 +244,6 @@ public class KafkaEmbedded extends ExternalResource implements KafkaRule {
 		this.zookeeper = new EmbeddedZookeeper();
 	}
 
-	public void bounce(int index, boolean waitForPropagation) {
-		this.kafkaServers.get(index).shutdown();
-		if (waitForPropagation) {
-			long initialTime = System.currentTimeMillis();
-			boolean canExit = false;
-			do {
-				try {
-					Thread.sleep(100);
-				}
-				catch (InterruptedException e) {
-					break;
-				}
-				canExit = true;
-				ZkUtils zkUtils = new ZkUtils(getZkClient(), null, false);
-				Map<String, Properties> topicProperties = AdminUtils$.MODULE$.fetchAllTopicConfigs(zkUtils);
-				Set<TopicMetadata> topicMetadatas =
-						AdminUtils$.MODULE$.fetchTopicMetadataFromZk(topicProperties.keySet(), zkUtils);
-				for (TopicMetadata topicMetadata : JavaConversions.asJavaCollection(topicMetadatas)) {
-					if (Errors.forCode(topicMetadata.errorCode()).exception() == null) {
-						for (PartitionMetadata partitionMetadata :
-								JavaConversions.asJavaCollection(topicMetadata.partitionsMetadata())) {
-							Collection<BrokerEndPoint> inSyncReplicas =
-									JavaConversions.asJavaCollection(partitionMetadata.isr());
-							for (BrokerEndPoint broker : inSyncReplicas) {
-								if (broker.id() == index) {
-									canExit = false;
-								}
-							}
-						}
-					}
-				}
-			}
-			while (!canExit && (System.currentTimeMillis() - initialTime < METADATA_PROPAGATION_TIMEOUT));
-		}
-
-	}
-
-	public void bounce(int index) {
-		bounce(index, true);
-	}
 
 	public void restart(final int index) throws Exception { //NOSONAR
 
@@ -324,38 +272,6 @@ public class KafkaEmbedded extends ExternalResource implements KafkaRule {
 		});
 	}
 
-	public void waitUntilSynced(String topic, int brokerId) {
-		long initialTime = System.currentTimeMillis();
-		boolean canExit = false;
-		do {
-			try {
-				Thread.sleep(100);
-			}
-			catch (InterruptedException e) {
-				break;
-			}
-			canExit = true;
-			ZkUtils zkUtils = new ZkUtils(getZkClient(), null, false);
-			TopicMetadata topicMetadata = AdminUtils$.MODULE$.fetchTopicMetadataFromZk(topic, zkUtils);
-			if (Errors.forCode(topicMetadata.errorCode()).exception() == null) {
-				for (PartitionMetadata partitionMetadata :
-						JavaConversions.asJavaCollection(topicMetadata.partitionsMetadata())) {
-					Collection<BrokerEndPoint> isr = JavaConversions.asJavaCollection(partitionMetadata.isr());
-					boolean containsIndex = false;
-					for (BrokerEndPoint broker : isr) {
-						if (broker.id() == brokerId) {
-							containsIndex = true;
-						}
-					}
-					if (!containsIndex) {
-						canExit = false;
-					}
-
-				}
-			}
-		}
-		while (!canExit && (System.currentTimeMillis() - initialTime < METADATA_PROPAGATION_TIMEOUT));
-	}
 
 	@Override
 	public String getBrokersAsString() {

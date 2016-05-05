@@ -35,8 +35,10 @@ allprojects {
 	group = 'org.springframework.kafka'
 
 	repositories {
+		mavenLocal()
 		maven { url 'https://repo.spring.io/libs-release' }
 		maven { url 'https://repo.spring.io/libs-milestone' }
+		maven { url 'https://repo.spring.io/libs-snapshot' }
 		if (project.hasProperty('platformVersion')) {
 			maven { url 'https://repo.spring.io/snapshot' }
 		}
@@ -74,9 +76,10 @@ subprojects { subproject ->
 		hamcrestVersion = '1.3'
 		jacksonVersion = '2.3.2'
 		junitVersion = '4.12'
-		kafkaVersion = '0.9.0.1'
+		kafkaVersion = '0.10.1.0-SNAPSHOT'
 		log4jVersion = '1.2.17'
 		mockitoVersion = '1.9.5'
+		reactorVersion = '2.5.0.BUILD-SNAPSHOT'
 		scalaVersion = '2.11'
 		springRetryVersion = '1.1.2.RELEASE'
 		springVersion = '4.2.5.RELEASE'
@@ -142,6 +145,7 @@ project ('spring-kafka') {
 	dependencies {
 		compile "org.springframework:spring-messaging:$springVersion"
 		compile "org.apache.kafka:kafka-clients:$kafkaVersion"
+		compile "org.apache.kafka:kafka-streams:$kafkaVersion"
 		compile ("com.fasterxml.jackson.core:jackson-core:$jacksonVersion", optional)
 		compile ("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion", optional)
 
@@ -171,6 +175,17 @@ project ('spring-kafka-test') {
 		}
 		compile ("org.hamcrest:hamcrest-all:$hamcrestVersion", optional)
 		compile ("org.assertj:assertj-core:$assertjVersion", optional)
+	}
+}
+
+project ('spring-kafka-reactive') {
+	description = 'Spring Kafka Support for Reactive APIs'
+
+	dependencies {
+		compile project(':spring-kafka')
+		compile "io.projectreactor:reactor-core:$reactorVersion"
+
+		testCompile project (":spring-kafka-test")
 	}
 }
 
