@@ -35,8 +35,10 @@ allprojects {
 	group = 'org.springframework.kafka'
 
 	repositories {
+		mavenLocal()
 		maven { url 'https://repo.spring.io/libs-release' }
 		maven { url 'https://repo.spring.io/libs-milestone' }
+		maven { url 'https://repo.spring.io/libs-snapshot' }
 		if (project.hasProperty('platformVersion')) {
 			maven { url 'https://repo.spring.io/snapshot' }
 		}
@@ -65,8 +67,8 @@ subprojects { subproject ->
 		}
 	}
 
-	sourceCompatibility = 1.7
-	targetCompatibility = 1.7
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
 
 	ext {
 		assertjVersion = '3.3.0'
@@ -77,6 +79,7 @@ subprojects { subproject ->
 		kafkaVersion = '0.9.0.1'
 		log4jVersion = '1.2.17'
 		mockitoVersion = '1.9.5'
+		reactorVersion = '2.5.0.BUILD-SNAPSHOT'
 		scalaVersion = '2.11'
 		springRetryVersion = '1.1.2.RELEASE'
 		springVersion = '4.2.5.RELEASE'
@@ -171,6 +174,17 @@ project ('spring-kafka-test') {
 		}
 		compile ("org.hamcrest:hamcrest-all:$hamcrestVersion", optional)
 		compile ("org.assertj:assertj-core:$assertjVersion", optional)
+	}
+}
+
+project ('spring-kafka-reactive') {
+	description = 'Spring Kafka Support for Reactive APIs'
+
+	dependencies {
+		compile project(':spring-kafka')
+		compile "io.projectreactor:reactor-core:$reactorVersion"
+
+		testCompile project (":spring-kafka-test")
 	}
 }
 
