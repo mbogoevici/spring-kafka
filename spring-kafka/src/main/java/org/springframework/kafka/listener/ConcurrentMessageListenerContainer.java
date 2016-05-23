@@ -28,6 +28,7 @@ import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.common.TopicPartition;
 
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.Assert;
 
 /**
@@ -65,6 +66,8 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 	private OffsetCommitCallback commitCallback;
 
 	private boolean syncCommits = true;
+
+	private volatile boolean usingDefaultListenerExecutor;
 
 	/**
 	 * Construct an instance with the supplied configuration properties and specific
@@ -213,9 +216,18 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 				container.setRecentOffset(this.recentOffset);
 				container.setAutoStartup(false);
 				container.setMessageListener(getMessageListener());
-				if (getTaskExecutor() != null) {
-					container.setTaskExecutor(getTaskExecutor());
+				if (getConsumerTaskExecutor() != null) {
+					container.setConsumerTaskExecutor(getConsumerTaskExecutor());
 				}
+				if (getListenerTaskExecutor() == null) {
+					ThreadPoolTaskExecutor pooledExecutor = new ThreadPoolTaskExecutor();
+					pooledExecutor.setThreadNamePrefix((getBeanName() == null ? "" : getBeanName()) + "-kafka-listener-");
+					pooledExecutor.setCorePoolSize(this.concurrency);
+					pooledExecutor.afterPropertiesSet();
+					setListenerTaskExecutor(pooledExecutor);
+					this.usingDefaultListenerExecutor = true;
+				}
+				container.setListenerTaskExecutor(getListenerTaskExecutor());
 				if (getBeanName() != null) {
 					container.setBeanName(getBeanName() + "-" + i);
 				}
@@ -259,6 +271,10 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 				container.stop();
 			}
 			this.containers.clear();
+			if (this.usingDefaultListenerExecutor) {
+				setListenerTaskExecutor(null); // in case the concurrency changes before the next start
+				this.usingDefaultListenerExecutor = false;
+			}
 		}
 	}
 
