@@ -188,7 +188,7 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 	protected void doStart() {
 		if (!isRunning()) {
 			if (this.partitions != null && this.concurrency > this.partitions.length) {
-				logger.warn("When specific partitions are provided, the concurrency must be less than or "
+				this.logger.warn("When specific partitions are provided, the concurrency must be less than or "
 						+ "equal to the number of partitions; reduced from " + this.concurrency
 						+ " to " + this.partitions.length);
 				this.concurrency = this.partitions.length;
@@ -212,6 +212,7 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 				container.setAckTime(getAckTime());
 				container.setRecentOffset(this.recentOffset);
 				container.setAutoStartup(false);
+				container.setQueueDepth(getQueueDepth());
 				container.setMessageListener(getMessageListener());
 				if (getConsumerTaskExecutor() != null) {
 					container.setConsumerTaskExecutor(getConsumerTaskExecutor());
@@ -261,11 +262,11 @@ public class ConcurrentMessageListenerContainer<K, V> extends AbstractMessageLis
 	 * Under lifecycle lock.
 	 */
 	@Override
-	protected void doStop() {
+	protected void doStop(Runnable callback) {
 		if (isRunning()) {
 			setRunning(false);
 			for (KafkaMessageListenerContainer<K, V> container : this.containers) {
-				container.stop();
+				container.stop(callback);
 			}
 			this.containers.clear();
 		}
