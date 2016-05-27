@@ -25,9 +25,11 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -94,11 +96,12 @@ public class ConcurrentMessageListenerContainerTests {
 		ConcurrentMessageListenerContainer<Integer, String> container =
 				new ConcurrentMessageListenerContainer<>(cf, topic1);
 		final CountDownLatch latch = new CountDownLatch(4);
+		final ConcurrentSkipListSet<String> listenerThreadNames = new ConcurrentSkipListSet<>();
 		container.setMessageListener(new MessageListener<Integer, String>() {
-
 			@Override
 			public void onMessage(ConsumerRecord<Integer, String> message) {
 				ConcurrentMessageListenerContainerTests.this.logger.info("auto: " + message);
+				listenerThreadNames.add(Thread.currentThread().getName());
 				latch.countDown();
 			}
 		});
@@ -116,6 +119,13 @@ public class ConcurrentMessageListenerContainerTests {
 		template.sendDefault(2, "qux");
 		template.flush();
 		assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
+		assertThat(listenerThreadNames).allMatch(new Predicate<String>() {
+
+			@Override
+			public boolean test(String threadName) {
+				return threadName.contains("-consumer-");
+			}
+		});
 		container.stop();
 		this.logger.info("Stop auto");
 	}
@@ -128,11 +138,13 @@ public class ConcurrentMessageListenerContainerTests {
 		ConcurrentMessageListenerContainer<Integer, String> container =
 				new ConcurrentMessageListenerContainer<>(cf, topic1);
 		final CountDownLatch latch = new CountDownLatch(4);
+		final ConcurrentSkipListSet<String> listenerThreadNames = new ConcurrentSkipListSet<>();
 		container.setMessageListener(new MessageListener<Integer, String>() {
 
 			@Override
 			public void onMessage(ConsumerRecord<Integer, String> message) {
 				ConcurrentMessageListenerContainerTests.this.logger.info("auto: " + message);
+				listenerThreadNames.add(Thread.currentThread().getName());
 				latch.countDown();
 			}
 		});
@@ -170,6 +182,13 @@ public class ConcurrentMessageListenerContainerTests {
 		assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
 		assertThat(rebalancePartitionsAssignedLatch.await(60, TimeUnit.SECONDS)).isTrue();
 		assertThat(rebalancePartitionsRevokedLatch.await(60, TimeUnit.SECONDS)).isTrue();
+		assertThat(listenerThreadNames).allMatch(new Predicate<String>() {
+
+			@Override
+			public boolean test(String threadName) {
+				return threadName.contains("-consumer-");
+			}
+		});
 		container.stop();
 		this.logger.info("Stop auto");
 	}
@@ -182,11 +201,13 @@ public class ConcurrentMessageListenerContainerTests {
 		ConcurrentMessageListenerContainer<Integer, String> container =
 				new ConcurrentMessageListenerContainer<>(cf, topic2);
 		final CountDownLatch latch = new CountDownLatch(4);
+		final ConcurrentSkipListSet<String> listenerThreadNames = new ConcurrentSkipListSet<>();
 		container.setMessageListener(new MessageListener<Integer, String>() {
 
 			@Override
 			public void onMessage(ConsumerRecord<Integer, String> message) {
 				ConcurrentMessageListenerContainerTests.this.logger.info("manual: " + message);
+				listenerThreadNames.add(Thread.currentThread().getName());
 				latch.countDown();
 			}
 		});
@@ -204,6 +225,13 @@ public class ConcurrentMessageListenerContainerTests {
 		template.sendDefault(2, "qux");
 		template.flush();
 		assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
+		assertThat(listenerThreadNames).allMatch(new Predicate<String>() {
+
+			@Override
+			public boolean test(String threadName) {
+				return threadName.contains("-listener-");
+			}
+		});
 		container.stop();
 		this.logger.info("Stop manual");
 	}
@@ -482,6 +510,7 @@ public class ConcurrentMessageListenerContainerTests {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testConcurrencyWithPartitions() {
 		TopicPartition[] topic1PartitionS = new TopicPartition[]{
 				new TopicPartition(topic1, 0),
@@ -516,6 +545,7 @@ public class ConcurrentMessageListenerContainerTests {
 		});
 		container.setConcurrency(3);
 		container.start();
+		@SuppressWarnings("unchecked")
 		List<KafkaMessageListenerContainer<Integer, String>> containers =
 				(List<KafkaMessageListenerContainer<Integer, String>>) new DirectFieldAccessor(
 				container).getPropertyValue("containers");
