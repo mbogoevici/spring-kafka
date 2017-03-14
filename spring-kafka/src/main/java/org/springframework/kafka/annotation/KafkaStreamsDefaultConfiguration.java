@@ -36,7 +36,7 @@ import org.springframework.kafka.core.KStreamBuilderFactoryBean;
  *
  * @author Artem Bilan
  *
- * @since 2.0
+ * @since 1.1.4
  */
 @Configuration
 public class KafkaStreamsDefaultConfiguration {

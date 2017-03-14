@@ -35,7 +35,7 @@ import org.springframework.util.Assert;
  *
  * @author Artem Bilan
  *
- * @since 2.0
+ * @since 1.1.4
  */
 public class KStreamBuilderFactoryBean extends AbstractFactoryBean<KStreamBuilder> implements SmartLifecycle {
 

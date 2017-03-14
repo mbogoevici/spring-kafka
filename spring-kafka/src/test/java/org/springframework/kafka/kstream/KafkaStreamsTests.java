@@ -59,7 +59,7 @@ import org.springframework.util.concurrent.SettableListenableFuture;
 /**
  * @author Artem Bilan
  *
- * @since 2.0
+ * @since 1.1.4
  */
 @RunWith(SpringRunner.class)
 @DirtiesContext
